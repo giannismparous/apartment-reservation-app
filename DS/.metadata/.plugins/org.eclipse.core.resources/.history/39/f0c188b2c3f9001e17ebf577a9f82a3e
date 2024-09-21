@@ -1,0 +1,527 @@
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class Master {
+	
+	private int propertyCounter;
+    private Socket clientSocket;
+    private ArrayList<Socket> workerSockets;
+    private ArrayList<ObjectInputStream> workerInputStreams;
+    private ArrayList<ObjectOutputStream> workerOutputStreams;
+    private int connectionCounter;
+    private ArrayList<String> clientRequests;
+    private ArrayList<Object> clientResponses;
+    Socket sock;
+    ServerSocket serverSocket;
+    Reducer reducer;
+    
+    public Master() throws UnknownHostException, IOException, ClassNotFoundException, ParseException {
+    	
+    	sock=null;
+    	this.propertyCounter=0;
+        workerSockets=new ArrayList<>();
+        workerInputStreams = new ArrayList<>();
+        workerOutputStreams = new ArrayList<>();
+        connectionCounter=0;
+        clientRequests=new ArrayList<>();
+        clientResponses=new ArrayList<>();
+        
+        BufferedReader configReader = new BufferedReader(new FileReader("config.txt"));
+        
+        serverSocket = new ServerSocket(Integer.parseInt(configReader.readLine()));
+
+        configReader.close(); // Close the reader when done reading
+        
+    }
+
+
+    public void start() throws IOException, ParseException, ClassNotFoundException{
+
+    	try {
+		    Thread.sleep(20000); // Sleep for 20 seconds
+		} catch (InterruptedException e) {
+		    // Handle interrupted exception if necessary
+		    e.printStackTrace();
+		}
+    	
+    	System.out.println("Master 1");
+    	
+    	BufferedReader configReader2 = new BufferedReader(new FileReader("config.txt"));
+        String line2;
+        int counter=0;
+        System.out.println("Master 1");
+        while ((line2 = configReader2.readLine()) != null) {
+        	
+            if (line2.contains("%")) {
+            	counter++;
+            	System.out.println("Master 4");
+                continue; // Exit the loop if '%' is encountered
+                
+            }
+            
+            if (counter==2) {
+            	System.out.println("Master 5");
+            }break;
+
+            if (counter==1) {
+            	int port = Integer.parseInt(line2);
+                sock=new Socket("localhost", port);
+    			workerInputStreams.add(new ObjectInputStream(sock.getInputStream()));
+    			workerOutputStreams.add(new ObjectOutputStream(sock.getOutputStream()));
+    			workerSockets.add(sock);
+            }
+            
+        }
+        System.out.println("Master 3");
+        configReader2.close(); // Close the file reader when done
+    	
+        System.out.println("Master server started...");
+        while (true) {
+        	Socket clientSocket = serverSocket.accept();
+            
+            // Handle the client request in a separate thread to allow for concurrent connections
+            new Thread(() -> {
+                try {
+                    handleClientRequest(clientSocket);
+                } catch (IOException | ClassNotFoundException | ParseException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+        }
+  
+    }
+
+    private void handleClientRequest(Socket clientSocket) throws IOException, ParseException, ClassNotFoundException {
+    	
+    	String managerUsername;
+    	String renterUsername;
+    	String propertyName;
+    	Integer stars;
+    	String area;
+    	DateRange dateRange;
+    	Integer people;
+    	Integer price;
+    	
+    	 try (ObjectInputStream objectInputStream = new ObjectInputStream(clientSocket.getInputStream());
+    			 ObjectOutputStream objectOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+    	        ) {
+    		 
+    	     String mode = (String) objectInputStream.readObject();
+    	     int clientId;
+    	     
+    	     System.out.println(mode+" connected to Master");
+    	     
+    	     if (mode.equals("CLIENT")) {
+    	    	 clientRequests.add(null);
+    	    	 clientResponses.add(null);
+    	    	 clientId=connectionCounter;
+    	    	 connectionCounter++;
+    	     }
+    	     else {
+    	    	 clientId=-1;
+    	     }
+    		 
+    	     if (mode.equals("CLIENT")) {
+    	    	 while (true) {
+        			 System.out.println("Awaiting action command from user");
+    	    	     String action = (String) objectInputStream.readObject();
+    	            switch (action) {
+    	                case "ADD":
+    	                	readPropertyFromStream(objectInputStream);
+    	                    break;
+    	                case "SHOW":
+    	                	managerUsername = (String) objectInputStream.readObject();
+    	                	
+    	                	clientRequests.set(clientId,"PENDING");
+    	                	
+    	                	showManagerProperties(managerUsername, clientId);
+    	                	
+    	                	while (clientRequests.get(clientId).equals("PENDING")) {
+    	                	    try {
+    	                	    	
+    	                	        Thread.sleep(2000); 
+    	                	        
+    	                	    } catch (InterruptedException e) {
+    	                	        e.printStackTrace();
+    	                	    }
+    	                	}
+    	                	
+    	                	ArrayList<Property> mergedProperties = (ArrayList<Property>) clientResponses.get(clientId);
+    	                	
+    	                	String returnedPropertiesAsString="";
+    	                	
+    	                	for (int i=0;i<mergedProperties.size();i++) {
+    	                		returnedPropertiesAsString=returnedPropertiesAsString+mergedProperties.get(i).toString();
+    	                	}
+    	                	
+    	                	objectOutputStream.writeObject(returnedPropertiesAsString);
+    	                	
+    	                	clientRequests.set(clientId,"SATISFIED");
+    	                	
+    	                    break;
+    	                case "AVAILABILITY":
+    	                	readAvailabilityFromStream(objectInputStream);
+    	                    break;
+    	                case "BOOKINGS":
+    	                	managerUsername = (String) objectInputStream.readObject();
+    	                	
+    	                	clientRequests.set(clientId,"PENDING");
+    	                	
+    	                	showManagerBookings(managerUsername, clientId);
+    	                	
+    	                	while (clientRequests.get(clientId).equals("PENDING")) {
+    	                		
+    	                	    try {
+    	                	    	
+    	                	        Thread.sleep(2000); 
+    	                	        
+    	                	    } catch (InterruptedException e) {
+    	                	        e.printStackTrace();
+    	                	    }
+    	                	}
+    	                	
+    	                	
+    	                	Map<String, List<DateRange>> mergedPropertyNamesBookings = (Map<String, List<DateRange>>) clientResponses.get(clientId);
+    	                	StringBuilder stringBuilder = new StringBuilder();
+    	                	for (Map.Entry<String, List<DateRange>> entry : mergedPropertyNamesBookings.entrySet()) {
+    	                	    String tempPropertyName = entry.getKey();
+    	                	    List<DateRange> bookings = entry.getValue();
+    	                	    // Append the property name
+    	                	    stringBuilder.append("Property Name: ").append(tempPropertyName).append("\n");
+    	                	    // Iterate over the list of date ranges for the current property
+    	                	    for (DateRange tempDateRange : bookings) {
+    	                	        // Append each date range
+    	                	        stringBuilder.append("Date Range: ").append(tempDateRange).append("\n");
+    	                	    }
+    	                	    
+    	                	    // Add a separator for better readability
+    	                	    stringBuilder.append("------------------------------------\n");
+    	                	}
+    	                	// Extract the string from StringBuilder
+    	                	String returnedBookingsAsString = stringBuilder.toString();
+    	                	objectOutputStream.writeObject(returnedBookingsAsString);
+    	                	clientRequests.set(clientId,"SATISFIED");
+    	                	
+    	                    break;
+    	                case "BOOK":
+    	                    // Handle property booking request
+    	                    // Forward request to the appropriate worker
+    	                	renterUsername = (String) objectInputStream.readObject();
+    	                	propertyName = (String) objectInputStream.readObject();
+    	                	DateRange bookingRange = readDateRangeFromStream(objectInputStream);
+    	                    forwardPropertyBooking(renterUsername, propertyName, bookingRange);
+    	                    break;
+    	                case "RATE":
+    	                    // Handle property booking request
+    	                    // Forward request to the appropriate worker
+    	                	renterUsername = (String) objectInputStream.readObject();
+    	                	propertyName = (String) objectInputStream.readObject();
+    	                	stars = (Integer) objectInputStream.readObject();
+    	                    forwardPropertyRating(renterUsername, propertyName, stars);
+    	                    break;
+    	                case "FILTER":
+    	                	area = (String) objectInputStream.readObject();
+    	                	dateRange=readDateRangeFromStream(objectInputStream);
+    	                	people = (Integer) objectInputStream.readObject();
+    	                	price = (Integer) objectInputStream.readObject();
+    	                	stars = (Integer) objectInputStream.readObject();
+    	                	
+    	                	clientRequests.set(clientId,"PENDING");
+    	                	
+    	                	forwardPropertyFiltering(area, dateRange, people, price, stars, clientId);
+    	                	
+    	                	while (clientRequests.get(clientId).equals("PENDING")) {
+    	                	    try {
+    	                	    	
+    	                	        Thread.sleep(2000); 
+    	                	        
+    	                	    } catch (InterruptedException e) {
+    	                	        e.printStackTrace();
+    	                	    }
+    	                	}
+    	                	
+    	                	ArrayList<Property> mergedFilteredProperties = (ArrayList<Property>) clientResponses.get(clientId);
+    	                	
+    	                	String returnedFilteredPropertiesAsString="";
+    	                	
+    	                	for (int i=0;i<mergedFilteredProperties.size();i++) {
+    	                		returnedFilteredPropertiesAsString=returnedFilteredPropertiesAsString+mergedFilteredProperties.get(i).toString();
+    	                	}
+    	                	
+    	                	objectOutputStream.writeObject(returnedFilteredPropertiesAsString);
+    	                	clientRequests.set(clientId,"SATISFIED");
+    	                	
+    	                    break;
+    	                // Implement cases for other request types (UPDATE, etc.) as needed
+    	                default:
+    	                    // Unknown action, send error response
+    	                    break;
+    	               }
+    	    	 }
+    	    	 
+    	     }
+    	     else if (mode.equals("REDUCER")) {
+    	    	 while (true) {
+    	    		 Integer currentClientId= (Integer) objectInputStream.readObject();
+    	    		 Object currentClientResponse= (Object) objectInputStream.readObject();
+    	    		 clientRequests.set(currentClientId, "RECEIVED");
+    	    		 clientResponses.set(currentClientId, currentClientResponse);
+    	    	 }
+    	     }
+    	     
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void readPropertyFromStream(ObjectInputStream objectInputStream) throws IOException, ClassNotFoundException {
+    	
+    	String managerUsername = (String) objectInputStream.readObject();
+    	
+        String propertyInfo = (String) objectInputStream.readObject();
+
+        // Read property info
+        String[] keyValuePairs = propertyInfo.substring(1, propertyInfo.length() - 1).split(",");
+
+        String roomName = "";
+        int noOfPersons = 0;
+        String area = "";
+        int stars = 0;
+        int noOfReviews = 0;
+        String roomImage = "";
+
+        // Iterate over key-value pairs and split them based on colons
+        for (String pair : keyValuePairs) {
+            String[] keyValue = pair.split(":");
+            String key = keyValue[0].trim().replaceAll("\"", "");
+            String value = keyValue[1].trim().replaceAll("\"", ""); // Remove quotes
+
+            // Assign values to appropriate variables based on keys
+            switch (key) {
+                case "roomName":
+                    roomName = value;
+                    break;
+                case "noOfPersons":
+                    noOfPersons = Integer.parseInt(value);
+                    break;
+                case "area":
+                    area = value;
+                    break;
+                case "stars":
+                    stars = Integer.parseInt(value);
+                    break;
+                case "noOfReviews":
+                    noOfReviews = Integer.parseInt(value);
+                    break;
+                case "roomImage":
+                    roomImage = value;
+                    break;
+            }
+        }
+
+        // Read image data
+        byte[] imageData = (byte[]) objectInputStream.readObject();
+        
+        forwardPropertyAddition(roomName, managerUsername ,new Property(roomName, noOfPersons, area, stars, noOfReviews, roomImage,propertyCounter), imageData);
+        propertyCounter=propertyCounter+1;
+    }
+    
+    private void readAvailabilityFromStream(ObjectInputStream objectInputStream) throws IOException, ClassNotFoundException {
+    	
+    	String managerUsername = (String) objectInputStream.readObject();
+    	
+        String propertyName = (String) objectInputStream.readObject();
+        
+        String dateRangeAvailability = (String) objectInputStream.readObject();
+        
+        forwardPropertyAvailability(managerUsername, propertyName,dateRangeAvailability);
+
+        // Return property object with image
+    }
+
+    private Map<String, Object> readFiltersFromStream(BufferedReader reader) throws IOException {
+        Map<String, Object> filters = new HashMap<>();
+        
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String[] tokens = line.split(":");
+            String filterName = tokens[0];
+            Object filterValue = tokens[1]; // Assuming filter value is string for simplicity, you may need to parse it accordingly
+            filters.put(filterName, filterValue);
+        }
+        
+        return filters;
+    }
+
+    private DateRange readDateRangeFromStream(ObjectInputStream objectInputStream) throws IOException, ParseException, ClassNotFoundException {
+    	
+    	String startDateStr = (String) objectInputStream.readObject();
+    	
+        String endDateStr = (String) objectInputStream.readObject();
+        
+        if (startDateStr.equals("-") && endDateStr.equals("-"))return null;
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy");
+        Date startDate = dateFormat.parse(startDateStr);
+        Date endDate = dateFormat.parse(endDateStr);
+        
+        return new DateRange(startDate, endDate);
+    }
+
+    private void forwardPropertyAddition(String propertyName, String managerUsername,Property property, byte [] imageBytes) throws IOException {
+        // Choose a worker based on propertyId (e.g., using a hash function)
+        int workerIndex = Math.abs(propertyName.hashCode()) % workerSockets.size();
+
+        // Add the property to the chosen worker
+        
+        int port;
+        
+        if (workerIndex==0)port=5001;
+        else if (workerIndex==1)port=5002;
+        else port=5002;
+        
+        ObjectOutputStream objectOutputStream=workerOutputStreams.get(workerIndex);
+
+       System.out.println("Established connection with worker on port:"+ port);
+       System.out.println("Adding new property...");
+
+       String add = "ADD";
+       objectOutputStream.writeObject(add);
+       System.out.println("ADD SENT");
+       objectOutputStream.writeObject(managerUsername);
+       objectOutputStream.writeObject(property);
+       objectOutputStream.writeObject(imageBytes);
+
+          
+    }
+    
+    private void forwardPropertyAvailability(String managerUsername,String propertyName,String dateRangeAvailability) throws IOException {
+        // Choose a worker based on propertyId (e.g., using a hash function)
+        int workerIndex = Math.abs(propertyName.hashCode()) % workerSockets.size();
+
+        // Add availability of the property to the chosen worker
+        
+        ObjectOutputStream objectOutputStream=workerOutputStreams.get(workerIndex);
+        
+
+       System.out.println("Adding new availability...");
+
+       String availability = "AVAILABILITY";
+       objectOutputStream.writeObject(availability);
+       objectOutputStream.writeObject(managerUsername);
+       objectOutputStream.writeObject(propertyName);
+       objectOutputStream.writeObject(dateRangeAvailability);
+
+    }
+
+    private void showManagerProperties(String managerUsername, Integer clientId) throws IOException, ClassNotFoundException {
+        
+    	// Iterate over worker ports
+    	for (int i = 0; i <= 2; i++) { // Assuming you have workers on ports 5001 to 5003
+
+    	    ObjectOutputStream objectOutputStream=workerOutputStreams.get(i);
+
+    	        // Send "SHOW" request to worker
+    	        objectOutputStream.writeObject("SHOW");
+    	        objectOutputStream.writeObject(managerUsername);
+    	        objectOutputStream.writeObject(clientId);
+    	        
+    	 
+    	}
+    	
+    	return;
+    	
+    }
+    	
+    	private void showManagerBookings(String managerUsername, Integer clientId) throws IOException, ClassNotFoundException {
+        	
+        	// Iterate over worker ports
+        	for (int i = 0; i <= 2; i++) { // Assuming you have workers on ports 5001 to 5003
+        	    
+        	    ObjectOutputStream objectOutputStream=workerOutputStreams.get(i);
+
+        	        // Send "SHOW" request to worker
+        	        objectOutputStream.writeObject("BOOKINGS");
+        	        objectOutputStream.writeObject(managerUsername);
+        	        objectOutputStream.writeObject(clientId);
+        	        
+        	        
+        	}
+    	
+    	
+    }
+
+
+    private void forwardPropertyBooking(String renterUsername, String propertyName, DateRange bookingRange) throws IOException {
+    	// Choose a worker based on propertyId (e.g., using a hash function)
+        int workerIndex = Math.abs(propertyName.hashCode()) % workerSockets.size();
+        
+        ObjectOutputStream objectOutputStream=workerOutputStreams.get(workerIndex);
+
+       System.out.println("Adding new booking...");
+
+       String book = "BOOK";
+       objectOutputStream.writeObject(book);
+       objectOutputStream.writeObject(renterUsername);
+       objectOutputStream.writeObject(propertyName);
+       objectOutputStream.writeObject(bookingRange);
+
+           
+    }
+    
+    private void forwardPropertyRating(String renterUsername, String propertyName, Integer stars) throws IOException {
+    	// Choose a worker based on propertyId (e.g., using a hash function)
+        int workerIndex = Math.abs(propertyName.hashCode()) % workerSockets.size();
+
+        // Add the rating of the property to the chosen worker
+
+        ObjectOutputStream objectOutputStream=workerOutputStreams.get(workerIndex);
+
+       System.out.println("Adding new rating...");
+
+       String rate = "RATE";
+       objectOutputStream.writeObject(rate);
+       objectOutputStream.writeObject(renterUsername);
+       objectOutputStream.writeObject(propertyName);
+       objectOutputStream.writeObject(stars);
+
+    }
+    
+    private void forwardPropertyFiltering(String area, DateRange dateRange, Integer people, Integer price, Integer stars, Integer clientId) throws IOException, ClassNotFoundException {
+    	
+    	for (int i = 0; i <= 2; i++) { // Assuming you have workers on ports 5001 to 5003
+
+    	    ObjectOutputStream objectOutputStream=workerOutputStreams.get(i);
+
+    	        // Send "SHOW" request to worker
+	        objectOutputStream.writeObject("FILTER");
+	        objectOutputStream.writeObject(area);
+	        objectOutputStream.writeObject(dateRange);
+	        objectOutputStream.writeObject(people);
+	        objectOutputStream.writeObject(price);
+	        objectOutputStream.writeObject(stars);
+	        objectOutputStream.writeObject(clientId);
+	        
+    	}
+    }
+    
+    public static void main(String[] args) throws IOException, ParseException, ClassNotFoundException{
+            Master master = new Master();
+            master.start();
+    }
+    
+}

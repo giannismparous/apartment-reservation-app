@@ -1,0 +1,34 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.ParseException;
+
+public class Main {
+    public static void main(String[] args) throws IOException, ParseException, ClassNotFoundException{
+        int[] workerPorts = readConfigFile("config.txt");
+        
+        if (workerPorts.length == 3) {
+            Master master = new Master(workerPorts);
+            master.start();
+        } else {
+            System.out.println("Error: Incorrect number of worker ports in the config file.");
+        }
+    }
+
+    private static int[] readConfigFile(String filename) {
+        int[] workerPorts = new int[3];
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            String line;
+            int count = 0;
+            while ((line = br.readLine()) != null && count < 3) {
+                workerPorts[count] = Integer.parseInt(line.trim());
+                count++;
+            }
+        } catch (IOException e) {
+            System.out.println("Error reading config file: " + e.getMessage());
+        } catch (NumberFormatException e) {
+            System.out.println("Error parsing port number: " + e.getMessage());
+        }
+        return workerPorts;
+    }
+}

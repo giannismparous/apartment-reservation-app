@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="calendarView" type="id" />
+    <item name="textViewMinimumStars" type="id" />
+    <item name="buttonApplyFilters" type="id" />
+    <item name="editTextMinimumStars" type="id" />
+</resources>

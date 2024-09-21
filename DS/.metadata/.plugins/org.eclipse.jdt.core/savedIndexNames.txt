@@ -1,0 +1,3 @@
+INDEX VERSION 1.131+C:\Users\Giannis\Desktop\idek\Sxolh\Ergasies\Katanemhmena\DS-2024\DS\.metadata\.plugins\org.eclipse.jdt.core
+649481320.index
+805543414.index

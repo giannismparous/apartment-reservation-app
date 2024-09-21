@@ -1,0 +1,436 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+
+public class Worker extends Thread {
+	
+	private ServerSocket serverSocket;
+    private Socket clientSocket;
+    private BufferedReader reader;
+    private PrintWriter writer;
+    private Socket reducerSocket;
+    private ObjectOutputStream reducerOutputStream;
+    private Map<String, ArrayList<Integer>> managerPropertyMap;
+    private Map<String, String> propertyNameManagerMap;
+    private Map<String, Property> namePropertyMap;
+    private Map<Integer, Property> propertyMap;
+    private Map<Integer, byte []> photosMap;
+    private Map<Integer, List<DateRange>> bookingMap;
+    private Map<Integer, List<String>> bookingRentersMap;
+    private Map<String, List<Property>> rentersProperties;
+    private Map<Integer, DateRange> availabilityMap;
+    private Map<String, Integer> propertyNamePropertyIdMap;
+
+    public Worker(int id) throws UnknownHostException, IOException {
+    	
+    	
+    	this.propertyNameManagerMap= new HashMap<>();
+    	this.managerPropertyMap = new HashMap<>();
+    	this.namePropertyMap = new HashMap<>();
+        this.propertyMap = new HashMap<>();
+        this.photosMap = new HashMap<>();
+        this.bookingMap = new HashMap<>();
+        this.bookingRentersMap = new HashMap<>();
+        this.rentersProperties = new HashMap<>();
+        this.availabilityMap = new HashMap<>();
+        this.propertyNamePropertyIdMap = new HashMap<>();
+        
+        
+        BufferedReader configReader = new BufferedReader(new FileReader("config.txt"));
+        String line;
+        while ((line = configReader.readLine()) != null) {
+        	System.out.println(line);
+            if (line.contains("%")) {
+                break; // Exit the loop if '%' is encountered
+            }
+        }
+        System.out.println(line);
+
+        configReader.readLine();
+        System.out.println(line);
+        
+        for (int i = 0; i < id+1; i++) {
+            configReader.readLine();
+        }
+
+        // Use the current line as port
+        int port = Integer.parseInt(line.trim());
+        System.out.println(port);
+        
+        configReader.close();
+
+        try {
+            this.serverSocket = new ServerSocket(port);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+    }
+
+    @Override
+    public void run() {
+    	
+    	try {
+		    Thread.sleep(2000); // Sleep for 2 seconds (2000 milliseconds)
+		} catch (InterruptedException e) {
+		    // Handle interrupted exception if necessary
+		    e.printStackTrace();
+		}
+    	
+    	try {
+    		
+    		BufferedReader configReader = new BufferedReader(new FileReader("config.txt"));
+            
+            serverSocket = new ServerSocket(Integer.parseInt(configReader.readLine()));
+            
+            int reducerPort=6000; // Default port number
+
+            String line;
+            while ((line = configReader.readLine()) != null) {
+            	if (line.contains("%")) {
+                    continue; // Skip lines containing "%"
+                }
+                reducerPort = Integer.parseInt(line); // Update port number with each line
+            }
+
+            configReader.close(); // Close the reader when done reading
+            
+			reducerSocket=new Socket("localhost", reducerPort);
+			reducerOutputStream=new ObjectOutputStream(reducerSocket.getOutputStream());
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+    	
+    	
+        try {
+            // Accept incoming connections from the master
+            clientSocket = serverSocket.accept();
+            // Set up input and output streams
+//            reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+//            writer = new PrintWriter(clientSocket.getOutputStream(), true);
+            // Handle requests from the master
+            handleRequest();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+            try {
+                // Close the sockets and streams
+                if (reader != null) reader.close();
+                if (writer != null) writer.close();
+                if (clientSocket != null) clientSocket.close();
+                if (serverSocket != null) serverSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void handleRequest() throws ClassNotFoundException, ParseException, IOException {
+    	
+    	String managerUsername; 
+    	String renterUsername; 
+    	DateRange bookingRange; 
+    	String propertyName; 
+    	String dateRangeAvailability; 
+    	Integer stars;
+    	String area;
+    	DateRange dateRange;
+    	Integer people;
+    	Integer price;
+    	int clientId;
+    	
+    	ObjectOutputStream objectOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+		ObjectInputStream objectInputStream = new ObjectInputStream(clientSocket.getInputStream());
+    		while(true) {
+    			
+    			
+    			String action = (String) objectInputStream.readObject();
+    	        System.out.println("ACTION RECEIVED: "+action);
+    	        
+            switch (action) {
+                case "ADD":
+                	managerUsername = (String) objectInputStream.readObject();
+                	Property propertyToAdd = (Property) objectInputStream.readObject();
+                	byte[] imageData = (byte[]) objectInputStream.readObject();
+                	System.out.println(managerUsername);
+                	System.out.println(propertyToAdd.getArea());
+                	System.out.println(propertyToAdd.getRoomName());
+                	System.out.println(propertyToAdd.getStars());
+                	addProperty(managerUsername,propertyToAdd, imageData);
+                	System.out.println("Property Added");
+                    break;
+                case "SHOW":
+                	managerUsername = (String) objectInputStream.readObject();
+                	clientId = (Integer) objectInputStream.readObject();
+                	if (managerPropertyMap.get(managerUsername)==null) {
+                		reducerOutputStream.writeObject(clientId);
+                		reducerOutputStream.writeObject("SHOW");
+                		reducerOutputStream.writeObject(new ArrayList<>());
+                	}
+                	else {
+                		ArrayList<Property> temp=new ArrayList<>();
+                		
+                		ArrayList<Integer> tempIds=managerPropertyMap.get(managerUsername);
+                		
+                		for (int i=0;i<tempIds.size();i++) {
+                			temp.add(propertyMap.get(tempIds.get(i)));
+                		}
+                		
+                		reducerOutputStream.writeObject(clientId);
+                		reducerOutputStream.writeObject("SHOW");
+                		reducerOutputStream.writeObject(temp);
+                	}
+                	
+                    System.out.println("Response sent for SHOW action");
+                    break;
+                case "AVAILABILITY":
+                	managerUsername = (String) objectInputStream.readObject();
+                	propertyName = (String) objectInputStream.readObject();
+                	dateRangeAvailability = (String) objectInputStream.readObject();
+                	addAvailability(managerUsername, propertyName, dateRangeAvailability);
+                    break;
+                case "BOOKINGS":
+                	
+                	managerUsername = (String) objectInputStream.readObject();
+                	System.out.println("MANAGERUSERNAME");
+                	clientId = (Integer) objectInputStream.readObject();
+                	System.out.println("CLIENTID");
+                	Map<String,List<DateRange>> propertyNameBookings = new HashMap<>();
+                	
+                	for (Map.Entry<String, ArrayList<Integer>> entry : managerPropertyMap.entrySet()) {
+                        
+                        if (entry.getKey().equals(managerUsername)) {
+                        	ArrayList<Integer> properties = entry.getValue();
+                        	for (int i=0;i<properties.size();i++) {
+                        		propertyNameBookings.put(propertyMap.get(properties.get(i)).getRoomName(),bookingMap.get(properties.get(i)));
+                        	}
+                        }
+                        
+                    }
+                	
+                	System.out.println("OUT");
+                	
+                	reducerOutputStream.writeObject(clientId);
+                	System.out.println("OUT2");
+                	reducerOutputStream.writeObject("BOOKINGS");
+                	System.out.println("OUT3");
+                	reducerOutputStream.writeObject(propertyNameBookings);
+                    System.out.println("Response sent for BOOKINGS action");
+                    break;
+                case "BOOK":
+                	boolean unavailable=false;
+                	renterUsername = (String) objectInputStream.readObject();
+                	propertyName = (String) objectInputStream.readObject();
+                	bookingRange = (DateRange) objectInputStream.readObject();
+                	if (!availabilityMap.get(propertyNamePropertyIdMap.get(propertyName)).overlaps(bookingRange)) {
+                		
+                		List<DateRange> bookings = bookingMap.get(propertyNamePropertyIdMap.get(propertyName));
+                		for (int i=0;i<bookings.size();i++) {
+                			if (!bookings.get(i).overlaps(bookingRange)) {
+                				unavailable=true;
+                				break;
+                			}
+                		}
+                		
+                		if (!unavailable) {
+                			bookingMap.get(propertyNamePropertyIdMap.get(propertyName)).add(bookingRange);
+                			bookingRentersMap.get(propertyNamePropertyIdMap.get(propertyName)).add(renterUsername);
+                			if (rentersProperties.get(renterUsername) == null)rentersProperties.put(renterUsername, new ArrayList<>());
+                			rentersProperties.get(renterUsername).add(propertyMap.get(propertyNamePropertyIdMap.get(propertyName)));
+                			System.out.println("Succesful booking");
+                		}
+                		else {
+                			System.out.println("Booking dates unavailable");
+                		}
+                		
+                	}
+                	else {
+                		System.out.println("It's not available in that date range.");
+                	}
+                    break;
+                case "RATE":
+                	
+                	renterUsername = (String) objectInputStream.readObject();
+                	propertyName = (String) objectInputStream.readObject();
+                	stars = (Integer) objectInputStream.readObject();
+                	if (rentersProperties.get(renterUsername)==null) {
+                		System.out.println("Renter has no bookings to rate.");
+                		return;
+                	}
+                	for (int i=0;i<rentersProperties.get(renterUsername).size();i++) {
+                		if (rentersProperties.get(renterUsername).get(i).getRoomName().equals(propertyName)){
+                			rentersProperties.get(renterUsername).get(i).rate(stars);
+                			System.out.println("Succesful rating");
+                			break;
+                		}
+                	}
+                	
+                    break;
+                case "FILTER":
+                	
+                	area = (String) objectInputStream.readObject();
+                	dateRange = (DateRange) objectInputStream.readObject();
+                	people = (Integer) objectInputStream.readObject();
+                	price = (Integer) objectInputStream.readObject();
+                	stars = (Integer) objectInputStream.readObject();
+                	clientId = (Integer) objectInputStream.readObject();
+                	ArrayList<Property> filteredProperties= new ArrayList<Property>();
+                	for (Map.Entry<Integer, Property> entry : propertyMap.entrySet()) {
+                        
+                		if (!area.equals("-")) {
+                			if (!entry.getValue().getArea().equals(area))continue;
+                		}
+                		
+                		if (dateRange!=null) {
+                			System.out.println("dateRange!=null");
+                			if (availabilityMap.get(propertyNamePropertyIdMap.get(entry.getValue().getRoomName())).overlaps(dateRange)) {
+                				continue;
+                			}
+                			
+                			List<DateRange> bookings = bookingMap.get(propertyNamePropertyIdMap.get(entry.getValue().getRoomName()));
+                			System.out.println("BOOKINGS SIZE:"+bookings.size());
+                    		for (int i=0;i<bookings.size();i++) {
+                    			if (!bookings.get(i).overlaps(dateRange)) {
+                    				System.out.println(bookings.get(i));
+                    				continue;
+                    			}
+                    		}
+                		}
+                		
+                		if (!people.equals(0)) {
+                			if (((Integer)entry.getValue().getNoOfPersons())<people)continue;
+                		}
+
+						if (!price.equals(0)) {
+							if (((Integer)entry.getValue().getPrice())>price)continue;
+						}
+
+						if (!stars.equals(0)) {
+							if (((Integer)entry.getValue().getStars())<stars)continue;
+						}
+						
+						filteredProperties.add(entry.getValue());
+                        
+                    }
+                	
+                	reducerOutputStream.writeObject(clientId);
+                	reducerOutputStream.writeObject("FILTER");
+                	reducerOutputStream.writeObject(filteredProperties);
+                    break;
+                
+                default:
+                    // Unknown action, send error response
+                    writer.println("ERROR: Unknown action");
+                    break;
+            	}
+    		}
+
+    }
+    
+    private void sendSearchResults(List<Property> searchResults) {
+        // Send the number of search results to the master
+        writer.println(searchResults.size());
+        // Send each property in the search results to the master
+        for (Property property : searchResults) {
+            writer.println(property.toString()); // Assuming Property class overrides toString() method
+        }
+    }
+
+    // Add a new property to the property map
+    public synchronized void addProperty(String managerUsername, Property property, byte [] imageData) {
+    	if (managerPropertyMap.containsKey(managerUsername)) {
+    		managerPropertyMap.get(managerUsername).add(property.getId());
+    		System.out.println("NEOS");
+    	}
+    	else {
+    		managerPropertyMap.put(managerUsername, new ArrayList<>());
+    	    managerPropertyMap.get(managerUsername).add(property.getId());
+    	}
+    	propertyNameManagerMap.put(managerUsername, property.getRoomName());
+    	namePropertyMap.put(property.getRoomName(), property);
+        propertyMap.put(property.getId(), property);
+        photosMap.put(property.getId(), imageData);
+        bookingMap.put(property.getId(), new ArrayList<>());
+        bookingRentersMap.put(property.getId(), new ArrayList<>());
+        propertyNamePropertyIdMap.put(property.getRoomName(), property.getId());
+        System.out.println(managerPropertyMap.size());
+    }
+    
+    public synchronized void addAvailability(String managerUsername, String propertyName, String dateRangeAvailability) throws ParseException {
+    	if (propertyNameManagerMap.get(managerUsername).equals(propertyName)) {
+    		availabilityMap.put(propertyNamePropertyIdMap.get(propertyName),new DateRange(dateRangeAvailability));
+    		System.out.println("Availability updated succesfully");
+    	}
+    	else {
+    		System.out.println("You are not the manager of this property.");
+    	}
+    }
+
+    // Search for properties based on given filters
+    public synchronized List<Property> searchProperties(Map<String, Object> filters) {
+        List<Property> result = new ArrayList<>();
+        for (Property property : propertyMap.values()) {
+            if (propertyMatchesFilters(property, filters)) {
+                result.add(property);
+            }
+        }
+        return result;
+    }
+
+    // Update property information
+    public synchronized void updateProperty(Integer propertyId, Property updatedProperty) {
+        if (propertyMap.containsKey(propertyId)) {
+            propertyMap.put(propertyId, updatedProperty);
+        }
+    }
+
+    // Helper method to check if a property matches given filters
+    private boolean propertyMatchesFilters(Property property, Map<String, Object> filters) {
+        // Check if property matches all provided filters
+        for (Map.Entry<String, Object> entry : filters.entrySet()) {
+            String filterName = entry.getKey();
+            Object filterValue = entry.getValue();
+            switch (filterName) {
+                case "roomName":
+                    if (!property.getRoomName().equals(filterValue)) {
+                        return false;
+                    }
+                    break;
+                case "noOfPersons":
+                    if (property.getNoOfPersons() != (int) filterValue) {
+                        return false;
+                    }
+                    break;
+                case "area":
+                    if (!property.getArea().equals(filterValue)) {
+                        return false;
+                    }
+                    break;
+                // Add cases for other filters as needed
+                default:
+                    // Unknown filter name, ignore it
+                    break;
+            }
+        }
+        return true; // Property matches all filters
+    }
+}

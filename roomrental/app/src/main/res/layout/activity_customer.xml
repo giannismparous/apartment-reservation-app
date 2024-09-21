@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Calendar widget -->
+        <CalendarView
+            android:id="@+id/calendarView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_centerHorizontal="true"
+            android:minDate="01/01/2024"
+            android:maxDate="31/12/2024" />
+
+        <!-- Days to stay -->
+        <TextView
+            android:id="@+id/textViewDaysToStay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Days to stay"
+            android:layout_below="@id/calendarView"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp" />
+
+        <EditText
+            android:id="@+id/editDaysToStay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="3"
+            android:layout_toEndOf="@id/textViewDaysToStay"
+            android:layout_below="@id/calendarView"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Minimum Stars -->
+        <TextView
+            android:id="@+id/textViewMinimumStars"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Minimum Stars"
+            android:layout_below="@id/editDaysToStay"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp" />
+
+        <EditText
+            android:id="@+id/editTextMinimumStars"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="3"
+            android:layout_toEndOf="@id/textViewMinimumStars"
+            android:layout_below="@id/editDaysToStay"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Max People -->
+        <TextView
+            android:id="@+id/textViewMaxPeople"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enter max People"
+            android:layout_below="@id/editTextMinimumStars"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp" />
+
+        <EditText
+            android:id="@+id/editTextMaxPeople"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="3"
+            android:layout_toEndOf="@id/textViewMaxPeople"
+            android:layout_below="@id/editTextMinimumStars"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Max Price -->
+        <TextView
+            android:id="@+id/textViewMaxPrice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Max Price:"
+            android:layout_below="@id/editTextMaxPeople"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp" />
+
+        <EditText
+            android:id="@+id/editTextMaxPrice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="100"
+            android:layout_toEndOf="@id/textViewMaxPrice"
+            android:layout_below="@id/editTextMaxPeople"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Area Name -->
+        <TextView
+            android:id="@+id/textViewAreaName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Area Name:"
+            android:layout_below="@id/editTextMaxPrice"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="16dp" />
+
+        <EditText
+            android:id="@+id/editTextAreaName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Athens"
+            android:layout_toEndOf="@id/textViewAreaName"
+            android:layout_below="@id/editTextMaxPrice"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp" />
+
+        <!-- Property Name -->
+        <EditText
+            android:id="@+id/propertyNameEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Property Name"
+            android:layout_below="@id/editTextAreaName"
+            android:layout_marginTop="16dp" />
+
+        <!-- Button for applying filters -->
+        <Button
+            android:id="@+id/applyFiltersButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Apply Filters"
+            android:layout_below="@id/editTextAreaName"
+            android:layout_marginTop="16dp" />
+
+        <ListView
+            android:id="@+id/filteredPropertiesListView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/applyFiltersButton"
+            android:layout_marginTop="16dp" />
+
+    </RelativeLayout>
+</ScrollView>

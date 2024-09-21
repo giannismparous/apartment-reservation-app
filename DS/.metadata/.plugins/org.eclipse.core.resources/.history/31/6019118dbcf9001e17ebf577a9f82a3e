@@ -1,0 +1,117 @@
+import java.io.Serializable;
+import java.util.Random;
+
+public class Property implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String roomName;
+    private int noOfPersons;
+    private String area;
+    private int stars;
+    private int noOfReviews;
+    private String roomImage;
+    private int id;
+    private int numberOfRatings;
+    private int starsSum;
+    private int price;
+
+    public Property(String roomName, int noOfPersons, String area, int stars, int noOfReviews, String roomImage, int id) {
+        this.roomName = roomName;
+        this.noOfPersons = noOfPersons;
+        this.area = area;
+        this.stars = stars;
+        this.noOfReviews = noOfReviews;
+        this.roomImage = roomImage;
+        this.id=id;
+        numberOfRatings=0;
+        starsSum=0;
+        Random random = new Random();
+        this.price = (int)(random.nextDouble() * 1000);
+    }
+
+    // Getters
+    public String getRoomName() {
+        return roomName;
+    }
+
+    public int getNoOfPersons() {
+        return noOfPersons;
+    }
+
+    public String getArea() {
+        return area;
+    }
+
+    public int getStars() {
+    	if (numberOfRatings==0)return 0;
+        return starsSum/numberOfRatings;
+    }
+
+    public int getNoOfReviews() {
+        return noOfReviews;
+    }
+
+    public String getRoomImage() {
+        return roomImage;
+    }
+    
+    public int getId() {
+        return id;
+    }
+    
+    public int getPrice() {
+        return price;
+    }
+
+    // Setters
+    public void setRoomName(String roomName) {
+        this.roomName = roomName;
+    }
+
+    public void setNoOfPersons(int noOfPersons) {
+        this.noOfPersons = noOfPersons;
+    }
+
+    public void setArea(String area) {
+        this.area = area;
+    }
+
+    public void setStars(int stars) {
+        this.stars = stars;
+    }
+
+    public void setNoOfReviews(int noOfReviews) {
+        this.noOfReviews = noOfReviews;
+    }
+
+    public void setRoomImage(String roomImage) {
+        this.roomImage = roomImage;
+    }
+    
+    public void setId(int id) {
+        this.id = id;
+    }
+    
+    public void setPrice(int price) {
+        this.price = price;
+    }
+    
+    public void rate(int stars) {
+    	starsSum=starsSum+stars;
+    	numberOfRatings++;
+    }
+    
+    public String toString() {
+        return "Property{" +
+                "roomName='" + roomName + '\'' +
+                ", noOfPersons=" + noOfPersons +
+                ", area='" + area + '\'' +
+                ", stars=" + stars +
+                ", noOfReviews=" + noOfReviews +
+                ", roomImage='" + roomImage + '\'' +
+                ", id=" + id +
+                ", numberOfRatings=" + numberOfRatings +
+                ", starsSum=" + starsSum +
+                ", price=" + price +
+                "}\n";
+    }
+}

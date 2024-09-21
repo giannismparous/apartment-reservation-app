@@ -1,0 +1,210 @@
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+
+public class ClientCLI {
+    public static void main(String[] args) throws ClassNotFoundException {
+        try (BufferedReader configReader = new BufferedReader(new FileReader("config.txt"));
+                Socket socket = new Socket("localhost", Integer.parseInt(configReader.readLine()));
+             BufferedReader consoleReader = new BufferedReader(new InputStreamReader(System.in));
+             ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+        		ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+        	objectOutputStream.writeObject("CLIENT");
+        	
+            System.out.println("Welcome to the Property Rental System!");
+            System.out.println("Type 'ADD' to add a property, 'SEARCH' to search for properties, or 'BOOK' to book a property.");
+
+            while (true) {
+                System.out.print("> ");
+                String input = consoleReader.readLine().trim();
+
+                if ("EXIT".equalsIgnoreCase(input)) {
+                    break;
+                }
+
+                // Send user input to the server
+                objectOutputStream.writeObject(input);
+
+                // If the action is ADD, read property information from a JSON file and send it to the server
+                if (input.contains("ADD")) {
+                	
+                	System.out.print("Enter manager ID: ");
+                    String managerUsername = consoleReader.readLine().trim();
+                    objectOutputStream.writeObject(managerUsername);
+                	
+                    System.out.print("Enter JSON file path: ");
+                    String jsonFilePath = consoleReader.readLine().trim();
+
+                    // Read JSON file
+                    try (BufferedReader jsonReader = new BufferedReader(new FileReader(jsonFilePath))) {
+                        StringBuilder jsonContent = new StringBuilder();
+                        String line;
+                        while ((line = jsonReader.readLine()) != null) {
+                            jsonContent.append(line);
+                        }
+
+                        // Send JSON content to server
+                        objectOutputStream.writeObject(jsonContent.toString());
+
+                        // Read image file
+                        
+                        String[] keyValuePairs = jsonContent.toString().substring(1, jsonContent.toString().length() - 1).split(",");
+                        
+                        for (String pair : keyValuePairs) {
+                        	String[] keyValue = pair.split(":");
+                            String key = keyValue[0].trim().replaceAll("\"", "");
+                            String value = keyValue[1].trim().replaceAll("\"", ""); // Remove quotes
+
+                            String roomImage = null; // Initialize roomImage outside the switch statement
+
+                            // Assign values to appropriate variables based on keys
+                            switch (key) {
+                                case "roomImage":
+                                    roomImage = value; // Assign value to roomImage if key is "roomImage"
+                                    break;
+                                // Add more cases for other keys if needed
+                            }
+                            
+                            // Use the value assigned to roomImage here or perform other actions
+                            System.out.println("Room Image: " + roomImage);
+                            
+                        }
+                        
+                        System.out.print("Enter image file path: ");
+                        String imagePath = consoleReader.readLine().trim();
+
+                        try (FileInputStream fileInputStream = new FileInputStream(imagePath)) {
+                            byte[] imageBytes = fileInputStream.readAllBytes();
+
+                            // Send image bytes to server
+                            objectOutputStream.writeObject(imageBytes);
+                        } catch (IOException e) {
+                            System.err.println("Error reading image file: " + e.getMessage());
+                        }
+                    } catch (IOException e) {
+                        System.err.println("Error reading JSON file: " + e.getMessage());
+                    }
+                    
+                }
+                else if (input.contains("SHOW")) {
+                	
+                	System.out.println("Enter manager ID: ");
+                    String managerUsername = consoleReader.readLine().trim();
+                    
+                    objectOutputStream.writeObject(managerUsername);
+                    String response = (String) objectInputStream.readObject();
+                    
+                    System.out.println("Showing properties received: "+response);
+                }
+                else if (input.contains("AVAILABILITY")) {
+                	
+                	System.out.print("Enter manager ID: ");
+                    String managerUsername = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter property name: ");
+                    String propertyName = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter date range availability: ");
+                    String dateRangeAvailability = consoleReader.readLine().trim();
+                    
+                    objectOutputStream.writeObject(managerUsername);
+                    objectOutputStream.writeObject(propertyName);
+                    objectOutputStream.writeObject(dateRangeAvailability);
+                }
+                else if (input.contains("BOOKINGS")) {
+                	
+                	System.out.print("Enter manager ID: ");
+                    String managerUsername = consoleReader.readLine().trim();
+                    
+                    objectOutputStream.writeObject(managerUsername);
+                    String response = (String) objectInputStream.readObject();
+                    
+                    System.out.println(response);
+                }
+                else if (input.contains("BOOK")) {
+                	
+                	System.out.print("Enter renter ID: ");
+                    String renterUsername = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter property name: ");
+                    String propertyName = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter start date: ");
+                    String startDate = consoleReader.readLine().trim();
+                    System.out.print("Enter end date: ");
+                    String endDate = consoleReader.readLine().trim();
+                    
+                    objectOutputStream.writeObject(renterUsername);
+                    objectOutputStream.writeObject(propertyName);
+                    objectOutputStream.writeObject(startDate);
+                    objectOutputStream.writeObject(endDate);
+                    
+//                    String response = (String) objectInputStream.readObject();
+//                    
+//                    System.out.println(response);
+                }
+                else if (input.contains("RATE")) {
+                	
+                	System.out.print("Enter renter ID: ");
+                    String renterUsername = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter property name: ");
+                    String propertyName = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter stars: ");
+                    Integer stars = Integer.parseInt(consoleReader.readLine().trim());
+                    
+                    objectOutputStream.writeObject(renterUsername);
+                    objectOutputStream.writeObject(propertyName);
+                    objectOutputStream.writeObject(stars);
+                    
+//                    String response = (String) objectInputStream.readObject();
+//                    
+//                    System.out.println(response);
+                }
+                else if (input.contains("FILTER")) {
+                	
+                	System.out.print("Enter Area:");
+                    String area = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter start date:");
+                    String startDate = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter end date:");
+                    String endDate = consoleReader.readLine().trim();
+                    
+                    System.out.print("Enter number of people: ");
+                    Integer people = Integer.parseInt(consoleReader.readLine().trim());
+                    
+                    System.out.print("Enter price: ");
+                    Integer price = Integer.parseInt(consoleReader.readLine().trim());
+                    
+                    System.out.print("Enter stars: ");
+                    Integer stars = Integer.parseInt(consoleReader.readLine().trim());
+                    
+                    objectOutputStream.writeObject(area);
+                    objectOutputStream.writeObject(startDate);
+                    objectOutputStream.writeObject(endDate);
+                    objectOutputStream.writeObject(people);
+                    objectOutputStream.writeObject(price);
+                    objectOutputStream.writeObject(stars);
+                    
+                    String response = (String) objectInputStream.readObject();
+                    
+                    System.out.println(response);
+                }
+
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}

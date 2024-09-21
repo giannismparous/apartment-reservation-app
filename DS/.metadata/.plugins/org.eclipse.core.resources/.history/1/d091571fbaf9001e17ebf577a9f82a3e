@@ -1,0 +1,199 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class Reducer extends Thread{
+	
+	private Socket masterSocket;
+	private ArrayList<Socket> workerSockets;
+    private ArrayList<ObjectInputStream> workerInputStreams;
+    private ObjectOutputStream masterOutputStream;
+    private HashMap<Integer,String> clientRequests;
+    private HashMap<Integer,Object> clientResponses;
+    private HashMap<Integer,Integer> clientWorkerResponseCounter;
+    ServerSocket serverSocket;
+    private int workerCounter;
+	
+	public Reducer()  throws UnknownHostException, IOException {
+		
+		workerSockets=new ArrayList<>();
+		workerInputStreams=new ArrayList<>();
+		clientRequests=new HashMap<>();
+		clientResponses=new HashMap<>();
+		clientWorkerResponseCounter=new HashMap<>();
+		
+		
+		try (BufferedReader configReader = new BufferedReader(new FileReader("config.txt"))) {
+            String line;
+            String lastLine = null;
+            while ((line = configReader.readLine()) != null) {
+                lastLine = line;
+            }
+            // Extract port from the last line and initialize ServerSocket
+            if (lastLine != null) {
+                int port = Integer.parseInt(lastLine.trim());
+                serverSocket = new ServerSocket(port);
+            } else {
+                throw new IOException("Config file is empty");
+            }
+        }
+		
+		
+		workerCounter=0;
+	}
+	
+	@Override
+    public void run(){
+		try {
+		    Thread.sleep(30000); // Sleep for 2 seconds (2000 milliseconds)
+		} catch (InterruptedException e) {
+		    // Handle interrupted exception if necessary
+		    e.printStackTrace();
+		}
+
+		try (BufferedReader configReader = new BufferedReader(new FileReader("config.txt"))) {
+		    // Read the first line to get the port number
+		    String firstLine = configReader.readLine();
+		    if (firstLine != null) {
+		        int port = Integer.parseInt(firstLine.trim());
+		        // Connect to the master using the port read from config
+		        masterSocket = new Socket("localhost", port);
+		        masterOutputStream = new ObjectOutputStream(masterSocket.getOutputStream());
+		        masterOutputStream.writeObject("REDUCER");
+		        System.out.println("Reducer server started...");
+		    } else {
+		        throw new IOException("Config file is empty");
+		    }
+		} catch (IOException e) {
+		    e.printStackTrace();
+		}
+      
+      while (true) {
+    	  
+    	  try {
+    		  Socket tempSocket = serverSocket.accept();
+    	        workerSockets.add(tempSocket);
+    	        workerInputStreams.add(new ObjectInputStream(tempSocket.getInputStream()));
+
+    	        final int currentWorkerIndex = workerCounter; // Capture the worker index
+    	        final Socket currentSocket = tempSocket; // Capture the socket
+    	        
+    	        new Thread(() -> {
+    	            try {
+    	                handleWorkerRequest(currentSocket, currentWorkerIndex); // Pass socket and index
+    	            } catch (IOException | ClassNotFoundException | ParseException e) {
+    	                e.printStackTrace();
+    	            }
+    	        }).start();
+    	        
+    	        workerCounter++; // Increment worker counter
+    	    } catch (IOException e1) {
+    	        e1.printStackTrace();
+    	    }
+          
+      }
+
+  }
+	
+	private void handleWorkerRequest(Socket currentSocket,int currentWorkerIndex) throws IOException, ParseException, ClassNotFoundException {
+		
+    	while (true){
+    	
+    		 
+    		 System.out.println("Worker connected to Reducer");
+    		 System.out.println(workerInputStreams.get(currentWorkerIndex));
+    	     Integer clientId = (Integer) workerInputStreams.get(currentWorkerIndex).readObject();
+    	     System.out.println("Client ID:"+clientId);
+    	     String action = (String) workerInputStreams.get(currentWorkerIndex).readObject();
+    	     System.out.println("Action:"+clientId);
+    	     Object newData = workerInputStreams.get(currentWorkerIndex).readObject();
+    	     System.out.println("Object received.");
+    	     
+    	     synchronized (clientRequests) {
+	    	     if (clientRequests.get(clientId)==null) {
+	    	    	 System.out.println(1);
+	    	    	 clientRequests.put(clientId,"SATISFIED");
+	    	    	 clientWorkerResponseCounter.put(clientId,0);
+	    	     }
+    	     
+	    	     if (clientRequests.get(clientId).equals("SATISFIED") && clientWorkerResponseCounter.get(clientId).equals(0)) {
+	    	    	 
+	    	    	 clientRequests.put(clientId,"PENDING");
+	    	    	 clientWorkerResponseCounter.put(clientId,1);
+	    	    	 
+	    	    	 if (action.equals("SHOW") || action.equals("FILTER"))clientResponses.put(clientId, (ArrayList<Property>) newData);
+	    	    	 else if (action.equals("BOOKINGS"))clientResponses.put(clientId,(Map<String,List<DateRange>>) newData);
+	    	    	 
+	    	     }
+	    	     else if (clientRequests.get(clientId).equals("PENDING")) {
+    	    	 
+    	    	 
+
+    	    	    if (action.equals("SHOW") || action.equals("FILTER")) {
+    	    	    	
+    	    	    	ArrayList<Property> existingData;
+    	    	    	if (clientResponses.get(clientId)==null)existingData=new ArrayList<>();
+    	    	    	else existingData = (ArrayList<Property>) clientResponses.get(clientId);
+
+    	    	        ArrayList<Property> mergedData = new ArrayList<Property>(existingData);
+    	    	        mergedData.addAll((Collection<? extends Property>) newData);
+    	    	        // Merge existing data with new data
+
+    	    	        // Update clientResponses with merged data
+    	    	        clientResponses.put(clientId, mergedData);
+    	    	        clientWorkerResponseCounter.put(clientId,clientWorkerResponseCounter.get(clientId)+1);
+    	    	        
+    	    	    } else if (action.equals("BOOKINGS")) {
+    	    	    	
+    	    	        Map<String, List<DateRange>> existingData = (Map<String, List<DateRange>>) clientResponses.get(clientId);
+
+    	    	        Map<String, List<DateRange>> mergedData = new HashMap<>(existingData);
+    	    	        
+    	    	        for (Map.Entry<String, List<DateRange>> entry : ((Map<String, List<DateRange>>) newData).entrySet()) {
+    	    	            String propertyName = entry.getKey();
+    	    	            List<DateRange> newBookings = entry.getValue();
+    	    	            
+    	    	            // Check if the property name already exists in the merged data
+    	    	            if (mergedData.containsKey(propertyName)) {
+    	    	                // If it does, append the new bookings to the existing list of bookings
+    	    	                mergedData.get(propertyName).addAll(newBookings);
+    	    	            } else {
+    	    	                // If it doesn't, create a new entry for the property with the new bookings
+    	    	                mergedData.put(propertyName, new ArrayList<>(newBookings));
+    	    	            }
+    	    	        }
+
+    	    	        // Update clientResponses with merged data
+    	    	        clientResponses.put(clientId, mergedData);
+    	    	        clientWorkerResponseCounter.put(clientId,clientWorkerResponseCounter.get(clientId)+1);
+    	    	    }
+    	    	    
+    	    	    if (clientWorkerResponseCounter.get(clientId).equals(3)) {
+    	    	    	clientRequests.put(clientId,"SATISFIED");
+    	    	    	clientWorkerResponseCounter.put(clientId,0);
+    	    	    	masterOutputStream.writeObject(clientId);
+    	    	    	masterOutputStream.writeObject(clientResponses.get(clientId));
+    	    	    	clientResponses.put(clientId, null);
+    	    	    }  	    
+    	     	}
+    	     }
+    	}
+	}
+	
+	public static void main(String[] args) throws IOException, ParseException, ClassNotFoundException{
+        Reducer reducer = new Reducer();
+        reducer.start();
+	}
+	
+}
